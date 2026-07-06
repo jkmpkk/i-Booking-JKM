@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>i-Booking JKM</title>
+
+  <!-- Tailwind CSS Play CDN (warning suppressed for sandboxed/production use) -->
+  <script>
+    // Suppress the "cdn.tailwindcss.com should not be used in production" warning
+    (function() {
+      const originalWarn = console.warn;
+      console.warn = function(...args) {
+        const msg = args[0];
+        if (typeof msg === 'string' && msg.includes('cdn.tailwindcss.com')) {
+          return; // ignore Tailwind Play CDN warning
+        }
+        originalWarn.apply(console, args);
+      };
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body, .roboto { font-family: 'Roboto', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    body { background-color: #0a2540; }
+    .content-card { background-color: #e0f0ff; }
+    .toast { animation: slideIn 0.3s ease, fadeOut 0.3s ease 2.7s; }
+    @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes fadeOut { to { opacity: 0; } }
+    .admin-gear { opacity: 0; transition: opacity 0.2s; }
+    .admin-gear:hover { opacity: 1; }
+    .schedule-tab-active { background-color: #1e3a5f; color: white; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col roboto">
+  <!-- Header -->
+  <header class="bg-white shadow-sm border-b border-gray-200 relative">
+    <div class="max-w-5xl mx-auto px-6 py-5 flex flex-col items-center gap-1">
+      <img src="https://i.postimg.cc/CKZc6KWW/Politeknik-Kota-Kinabalu-JPPKK.png" class="h-20 object-contain">
+      <p class="text-center font-bold text-xl tracking-wider text-[#1e3a5f]">JABATAN KEJURUTERAAN MEKANIKAL</p>
+      <h1 class="text-3xl font-extrabold text-[#1e3a5f]">i-Booking JKM</h1>
+      <p id="sesi-text" class="text-center text-sm font-semibold text-[#1e3a5f] tracking-wide mt-0.5"></p>
+    </div>
+    <div class="absolute top-5 right-5">
+      <button id="admin-btn" class="admin-gear p-3 text-gray-400 hover:text-red-600 rounded-full hover:bg-red-50" title="Admin (jkm123)">
+        <i data-lucide="settings" style="width:24px;height:24px"></i>
+      </button>
+    </div>
+    <!-- Admin Login Popup (small, beside icon) -->
+    <div id="admin-login-popup" class="hidden absolute top-16 right-5 bg-white border border-gray-200 shadow-xl rounded-2xl p-4 w-72 z-[70]">
+      <div class="flex items-center gap-2 mb-3">
+        <i data-lucide="lock" class="w-4 h-4 text-red-600"></i>
+        <p class="text-sm font-bold text-gray-700">Admin Login</p>
+      </div>
+      <input id="admin-pass-input" type="password" placeholder="Masukkan kata laluan admin" class="w-full border rounded-xl px-4 py-2.5 text-sm mb-3 focus:outline-none focus:border-red-400">
+      <div class="flex gap-2">
+        <button id="admin-login-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm py-2.5 rounded-xl font-semibold transition">Login</button>
+        <button id="admin-cancel-btn" class="flex-1 border hover:bg-gray-50 text-sm py-2.5 rounded-xl font-semibold transition">Batal</button>
+      </div>
+      <p class="text-[10px] text-center text-gray-400 mt-2">Kata laluan: jkm123</p>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-5xl mx-auto w-full px-6 py-6">
+    <!-- Admin Panel -->
+    <section id="admin-panel" class="hidden mb-6 rounded-2xl border-2 border-red-300 p-6 bg-red-50/70">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-bold text-xl text-red-700">Admin Panel</h2>
+        <button onclick="logoutAdmin()" class="text-xs px-3 py-1 bg-white border border-red-200 text-red-600 rounded-full font-medium flex items-center gap-1">
+          <i data-lucide="log-out" class="w-3 h-3"></i> Logout
+        </button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Users -->
+        <div>
+          <h3 class="font-semibold mb-2 flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> Nama Pengguna (Peminjam)</h3>
+          <div class="flex gap-2 mb-2">
+            <input id="admin-user-input" placeholder="Taip nama baru..." class="flex-1 border rounded-xl px-4 py-2 text-sm">
+            <button id="admin-add-user" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition">Tambah</button>
+          </div>
+          <label class="cursor-pointer flex items-center gap-2 text-sm bg-white border rounded-xl px-4 py-2 w-fit hover:bg-blue-50 transition">
+            <i data-lucide="upload" class="w-4 h-4"></i> Upload Excel/CSV
+            <input id="admin-excel-upload" type="file" accept=".xlsx,.xls,.csv" class="hidden">
+          </label>
+          <div id="admin-user-list" class="flex flex-wrap gap-2 mt-3 max-h-24 overflow-auto"></div>
+        </div>
+        <!-- Equip Holders -->
+        <div>
+          <h3 class="font-semibold mb-2 flex items-center gap-2"><i data-lucide="tool" class="w-4 h-4"></i> Jenis Peralatan &amp; Pemegang</h3>
+          <div class="flex gap-2 mb-2">
+            <input id="admin-equip-input" placeholder="Projector|En. Ahmad" class="flex-1 border rounded-xl px-4 py-2 text-sm">
+            <button id="admin-add-equip" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition">Tambah</button>
+          </div>
+          <div id="admin-equip-list" class="flex flex-wrap gap-2 mt-3 max-h-24 overflow-auto"></div>
+          <p class="text-[10px] text-emerald-600 mt-1">* Pemegang baru akan autosync ke paparan pengguna serta-merta</p>
+        </div>
+      </div>
+
+      <!-- Sesi -->
+      <div class="mt-5 pt-5 border-t border-red-200">
+        <h3 class="font-semibold mb-2 flex items-center gap-2"><i data-lucide="calendar" class="w-4 h-4"></i> Sesi Semasa</h3>
+        <div class="flex gap-2 items-center">
+          <input id="admin-sesi-input" placeholder="Sesi 2025/2026" class="flex-1 border rounded-xl px-4 py-2 text-sm max-w-[220px]">
+          <button id="admin-set-sesi" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-sm font-semibold transition">Kemaskini Sesi</button>
+        </div>
+        <p id="admin-current-sesi" class="text-xs text-gray-500 mt-1.5"></p>
+      </div>
+
+      <button id="admin-reset-all" class="mt-5 bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition">
+        <i data-lucide="trash-2" class="w-4 h-4"></i> Padam Semua Booking
+      </button>
+    </section>
+
+    <!-- Booking Buttons -->
+    <div class="mb-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <button id="book-proj-btn" class="flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-700 active:scale-[0.985] text-white px-8 py-5 rounded-2xl font-bold text-lg shadow transition">Booking Projector</button>
+        <button id="book-lap-btn" class="flex items-center justify-center gap-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.985] text-white px-8 py-5 rounded-2xl font-bold text-lg shadow transition"> Booking Laptop</button>
+      </div>
+    </div>
+
+    <!-- Holder Tabs View -->
+    <div id="holder-tabs-container" class="hidden mb-8">
+      <div class="flex items-center justify-between mb-3">
+        <h3 id="holder-equip-title" class="font-bold text-xl text-white"></h3>
+        <button onclick="closeHolderView()" class="text-sm px-4 py-1.5 bg-white/90 hover:bg-white rounded-xl font-semibold shadow-sm">← Kembali ke Jadual Keseluruhan</button>
+      </div>
+      <div id="holder-tabs" class="flex flex-wrap gap-2 mb-4"></div>
+      <div id="holder-grid-wrapper" class="content-card rounded-2xl border border-blue-200 p-3"></div>
+    </div>
+
+    <!-- Global Schedule Section (Tabbed by Equipment) -->
+    <section id="global-grid-section">
+      <div class="flex items-end justify-between mb-3">
+        <h2 class="font-bold text-xl text-white">Jadual Keseluruhan</h2>
+        <div class="text-xs text-blue-200">Klik sel kosong untuk booking • Klik sel berwarna untuk padam</div>
+      </div>
+
+      <!-- Schedule Type Tabs -->
+      <div class="flex mb-3 bg-white/90 rounded-2xl p-1 w-fit shadow-sm">
+        <button onclick="switchScheduleTab('Projector')" id="sched-tab-proj" 
+                class="px-6 py-2 text-sm font-semibold rounded-2xl transition schedule-tab-active">📽️ Projector</button>
+        <button onclick="switchScheduleTab('Laptop')" id="sched-tab-lap" 
+                class="px-6 py-2 text-sm font-semibold rounded-2xl text-[#1e3a5f] hover:bg-white/70 transition">💻 Laptop</button>
+      </div>
+
+      <!-- PROJECTOR SCHEDULE -->
+      <div id="proj-schedule-wrapper">
+        <div class="mb-2 px-1 flex items-center gap-2">
+          <span class="text-sm font-semibold text-white">Pemegang tersedia:</span> 
+          <span id="proj-holders-list" class="text-sm text-blue-100 font-medium"></span>
+        </div>
+        <div class="overflow-x-auto rounded-2xl border border-blue-200 shadow-sm content-card">
+          <table id="proj-schedule-grid" class="w-full text-xs border-collapse">
+            <thead>
+              <tr class="bg-[#c5dfff]">
+                <th class="px-3 py-3 text-left font-bold text-[#1e3a5f] sticky left-0 bg-[#c5dfff] z-20 border border-blue-200 w-[95px]">Hari</th>
+              </tr>
+            </thead>
+            <tbody id="proj-schedule-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- LAPTOP SCHEDULE -->
+      <div id="lap-schedule-wrapper" class="hidden">
+        <div class="mb-2 px-1 flex items-center gap-2">
+          <span class="text-sm font-semibold text-white">Pemegang tersedia:</span> 
+          <span id="lap-holders-list" class="text-sm text-blue-100 font-medium"></span>
+        </div>
+        <div class="overflow-x-auto rounded-2xl border border-blue-200 shadow-sm content-card">
+          <table id="lap-schedule-grid" class="w-full text-xs border-collapse">
+            <thead>
+              <tr class="bg-[#c5dfff]">
+                <th class="px-3 py-3 text-left font-bold text-[#1e3a5f] sticky left-0 bg-[#c5dfff] z-20 border border-blue-200 w-[95px]">Hari</th>
+              </tr>
+            </thead>
+            <tbody id="lap-schedule-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bg-[#0a2540] border-t border-blue-900 py-4 text-center">
+    <p class="text-blue-200 text-sm">© 2026 JKM Politeknik Kota Kinabalu • i-Booking JKM</p>
+  </footer>
+
+  <div id="toast-container" class="fixed top-4 right-4 z-50"></div>
+
+  <!-- Delete Modal -->
+  <div id="delete-modal" class="fixed inset-0 bg-black/50 z-40 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 max-w-sm w-full">
+      <p class="font-semibold mb-5">Padamkan booking ini?</p>
+      <div class="flex gap-3">
+        <button id="delete-yes" class="flex-1 py-3 rounded-2xl bg-red-600 text-white font-semibold">Ya, Padam</button>
+        <button id="delete-no" class="flex-1 py-3 rounded-2xl border font-semibold">Batal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Booking Modal -->
+  <div id="booking-modal" class="fixed inset-0 bg-black/50 z-[60] hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-7 w-full max-w-md">
+      <div class="flex justify-between items-center mb-6">
+        <h3 id="modal-title" class="font-extrabold text-2xl text-[#1e3a5f]"></h3>
+        <button id="modal-close" class="text-4xl leading-none text-gray-400 hover:text-gray-600">&times;</button>
+      </div>
+      <form id="modal-booking-form" class="space-y-5">
+        <div>
+          <label class="block text-sm font-bold mb-1.5">Nama Peminjam</label>
+          <select id="modal-input-name" required class="w-full border rounded-2xl px-4 py-3 text-sm"><option value="">Pilih</option></select>
+        </div>
+        <div>
+          <label class="block text-sm font-bold mb-1.5">Tempoh Peminjaman</label>
+          <select id="modal-booking-type" class="w-full border rounded-2xl px-4 py-3 text-sm">
+            <option value="single">Hanya untuk tarikh &amp; masa tertentu</option>
+            <option value="semester">Untuk 1 Semester (berulang)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-bold mb-1.5">Nama Pemegang Peralatan</label>
+          <select id="modal-input-owner" required class="w-full border rounded-2xl px-4 py-3 text-sm"></select>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="block text-sm font-bold mb-1.5">Tarikh Pinjam</label><input id="modal-input-date" type="date" required class="w-full border rounded-2xl px-4 py-3 text-sm"></div>
+          <div><label class="block text-sm font-bold mb-1.5">Masa Mula</label><select id="modal-input-time" required class="w-full border rounded-2xl px-4 py-3 text-sm"></select></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="block text-sm font-bold mb-1.5">Tarikh Tamat</label><input id="modal-input-end-date" type="date" required class="w-full border rounded-2xl px-4 py-3 text-sm"></div>
+          <div><label class="block text-sm font-bold mb-1.5">Masa Tamat</label><select id="modal-input-end-time" required class="w-full border rounded-2xl px-4 py-3 text-sm"></select></div>
+        </div>
+        <div class="flex gap-3 pt-3">
+          <button type="button" id="modal-cancel" class="flex-1 py-3.5 rounded-2xl border font-bold">Batal</button>
+          <button type="submit" id="submit-booking-btn" class="flex-1 py-3.5 rounded-2xl bg-[#1e3a5f] text-white font-bold">Hantar Booking</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script>
+    // === SAFE STORAGE WRAPPER (fixes sandboxed iframe error) ===
+    const safeStorage = {
+      getItem(key) {
+        try {
+          return localStorage.getItem(key);
+        } catch (e) {
+          return null; // sandboxed environment (no allow-same-origin)
+        }
+      },
+      setItem(key, value) {
+        try {
+          localStorage.setItem(key, value);
+        } catch (e) {
+          // silently ignore in sandboxed iframes
+        }
+      }
+    };
+
+    const WEEKDAYS = ['Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu','Ahad'];
+    let allData = [];
+    let isAdmin = false;
+    let deleteTarget = null;
+    let currentBookingType = '';
+    let currentSesi = safeStorage.getItem('bk_sesi') || 'Sesi 2025/2026';
+
+    // === AUTO DEFAULT HOLDERS (only on first run if storage is empty) ===
+    let equipOwners = JSON.parse(safeStorage.getItem('bk_equip_owners') || '[]');
+    
+    // Only seed defaults if this is the very first time (no holders saved yet)
+    if (equipOwners.length === 0) {
+      equipOwners = [
+        {type: "Projector", owner: "En. Ahmad"},
+        {type: "Projector", owner: "Pn. Siti"},
+        {type: "Laptop", owner: "En. Lee"},
+        {type: "Laptop", owner: "Pn. Fatimah"}
+      ];
+      safeStorage.setItem('bk_equip_owners', JSON.stringify(equipOwners));
+    }
+
+    let userNames = JSON.parse(safeStorage.getItem('bk_users') || '["Cikgu Ahmad","Cikgu Siti","Cikgu Lee"]');
+
+    const userColorPalette = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1'];
+    
+    function getUserColor(name) {
+      let hash = 0; for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+      return userColorPalette[Math.abs(hash) % userColorPalette.length];
+    }
+
+    function saveUsers() {
+      safeStorage.setItem('bk_users', JSON.stringify(userNames));
+      renderAdminUsers();
+      refreshBookingFormIfOpen();
+    }
+
+    function saveEquipOwners() {
+      safeStorage.setItem('bk_equip_owners', JSON.stringify(equipOwners));
+      renderAdminEquip();
+      refreshBookingFormIfOpen();
+      // Auto sync: re-render schedules & holder lists immediately
+      if (typeof renderAllSchedules === 'function') renderAllSchedules();
+    }
+
+    function refreshBookingFormIfOpen() {
+      const modal = document.getElementById('booking-modal');
+      if (modal && !modal.classList.contains('hidden') && currentBookingType) {
+        const nameSel = document.getElementById('modal-input-name');
+        if (nameSel) nameSel.innerHTML = `<option value="">Pilih</option>` + userNames.map(n => `<option value="${n}">${n}</option>`).join('');
+        populateOwnerSelect(currentBookingType);
+      }
+    }
+
+    const timeSlots = []; 
+    for (let h = 8; h <= 17; h++) { 
+      const ampm = h < 12 ? 'AM' : 'PM'; 
+      const h12 = h > 12 ? h - 12 : h; 
+      timeSlots.push({ value: `${h}:00`, label: `${h12}:00 ${ampm}` }); 
+    }
+
+    function formatTime12(val) { 
+      if (!val) return ''; 
+      const h = parseInt(val); 
+      const ampm = h < 12 ? 'AM' : 'PM'; 
+      const h12 = h > 12 ? h - 12 : h; 
+      return `${h12}:00 ${ampm}`; 
+    }
+
+    // === ADMIN ===
+    function renderAdminUsers() {
+      const el = document.getElementById('admin-user-list');
+      el.innerHTML = userNames.map(n => 
+        `<span class="inline-flex items-center gap-1 bg-white border rounded-full px-3 py-1 text-sm">${n}<button class="text-red-500 hover:text-red-700 font-bold px-1.5" data-rm-user="${n}">&times;</button></span>`
+      ).join('');
+      el.querySelectorAll('[data-rm-user]').forEach(b => {
+        b.onclick = () => { 
+          userNames = userNames.filter(u => u !== b.dataset.rmUser); 
+          saveUsers(); 
+        };
+      });
+    }
+
+    function renderAdminEquip() {
+      const el = document.getElementById('admin-equip-list');
+      el.innerHTML = equipOwners.map((e,i) => 
+        `<span class="inline-flex items-center gap-1 bg-white border rounded-full px-3 py-1 text-sm">${e.type} | ${e.owner}<button class="text-red-500 hover:text-red-700 font-bold px-1.5" data-rm-equip="${i}">&times;</button></span>`
+      ).join('');
+      el.querySelectorAll('[data-rm-equip]').forEach(b => {
+        b.onclick = () => { 
+          equipOwners.splice(+b.dataset.rmEquip,1); 
+          saveEquipOwners(); 
+        };
+      });
+    }
+
+    function updateSesiDisplay() {
+      const el = document.getElementById('sesi-text');
+      if (el) el.textContent = currentSesi;
+      const adminEl = document.getElementById('admin-current-sesi');
+      if (adminEl) adminEl.textContent = 'Aktif: ' + currentSesi;
+    }
+
+    document.getElementById('admin-add-user').onclick = () => {
+      const v = document.getElementById('admin-user-input').value.trim();
+      if (v && !userNames.includes(v)) { 
+        userNames.push(v); 
+        saveUsers(); 
+        showToast('Nama ditambah'); 
+      }
+      document.getElementById('admin-user-input').value = '';
+    };
+
+    document.getElementById('admin-add-equip').onclick = () => {
+      const raw = document.getElementById('admin-equip-input').value.trim();
+      const p = raw.split('|');
+      if (p.length === 2) { 
+        let type = p[0].trim();
+        const owner = p[1].trim();
+        
+        // Normalize type to correct casing (case-insensitive match)
+        const typeLower = type.toLowerCase();
+        if (typeLower === 'projector' || typeLower === 'proj' || typeLower === 'projector ') {
+          type = 'Projector';
+        } else if (typeLower === 'laptop' || typeLower === 'lap' || typeLower === 'laptop ') {
+          type = 'Laptop';
+        }
+        
+        // Only allow valid types
+        if (type !== 'Projector' && type !== 'Laptop') {
+          showToast('Jenis mestilah "Projector" atau "Laptop" (contoh: Projector|En. Ali)');
+          document.getElementById('admin-equip-input').value = '';
+          return;
+        }
+        
+        // Avoid duplicate
+        if (!equipOwners.some(o => o.type === type && o.owner.toLowerCase() === owner.toLowerCase())) {
+          equipOwners.push({type, owner});
+          saveEquipOwners();
+          showToast('Pemegang baru ditambah & autosync ke user view');
+        } else {
+          showToast('Pemegang ini sudah wujud');
+        }
+      } else {
+        showToast('Format salah. Guna: Projector|Nama Pemegang');
+      }
+      document.getElementById('admin-equip-input').value = '';
+    };
+
+    document.getElementById('admin-excel-upload').onchange = e => {
+      const f = e.target.files[0]; if(!f) return;
+      const r = new FileReader();
+      r.onload = ev => {
+        const wb = XLSX.read(ev.target.result,{type:'array'});
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});
+        let added = 0;
+        rows.forEach(row => {
+          const name = String(row[0]||'').trim(); 
+          if(name && !userNames.includes(name)){ 
+            userNames.push(name); added++; 
+          }
+        });
+        saveUsers(); 
+        showToast(added + ' nama ditambah dari fail');
+      };
+      r.readAsArrayBuffer(f); 
+      e.target.value = '';
+    };
+
+    // Admin popup handlers
+    function initAdminPopup() {
+      const adminBtn = document.getElementById('admin-btn');
+      const popup = document.getElementById('admin-login-popup');
+      const passInput = document.getElementById('admin-pass-input');
+      const loginBtn = document.getElementById('admin-login-btn');
+      const cancelBtn = document.getElementById('admin-cancel-btn');
+
+      adminBtn.onclick = () => {
+        if (isAdmin) {
+          logoutAdmin();
+          return;
+        }
+        popup.classList.toggle('hidden');
+        if (!popup.classList.contains('hidden')) {
+          passInput.value = '';
+          passInput.focus();
+        }
+      };
+
+      loginBtn.onclick = () => {
+        const pass = passInput.value.trim();
+        if (pass === 'jkm123') {
+          isAdmin = true;
+          document.getElementById('admin-panel').classList.remove('hidden');
+          popup.classList.add('hidden');
+          showToast('Admin mode aktif');
+        } else if (pass !== '') {
+          showToast('Kata laluan salah!');
+        }
+      };
+
+      cancelBtn.onclick = () => popup.classList.add('hidden');
+
+      // Close popup when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!popup.classList.contains('hidden') && 
+            !popup.contains(e.target) && 
+            e.target.id !== 'admin-btn' && 
+            !adminBtn.contains(e.target)) {
+          popup.classList.add('hidden');
+        }
+      });
+
+      // Enter key to login
+      passInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') loginBtn.click();
+      });
+    }
+
+    function logoutAdmin() {
+      isAdmin = false;
+      document.getElementById('admin-panel').classList.add('hidden');
+      document.getElementById('admin-login-popup').classList.add('hidden');
+      showToast('Admin logout');
+    }
+
+    document.getElementById('admin-set-sesi').onclick = () => {
+      const v = document.getElementById('admin-sesi-input').value.trim();
+      if (v) {
+        currentSesi = v;
+        safeStorage.setItem('bk_sesi', currentSesi);
+        updateSesiDisplay();
+        showToast('Sesi dikemaskini');
+        document.getElementById('admin-sesi-input').value = '';
+      }
+    };
+
+    document.getElementById('admin-reset-all').onclick = async () => {
+      if (!allData.length || !confirm('Padam SEMUA booking? Tindakan ini tidak boleh dibuat asal.')) return;
+      const btn = document.getElementById('admin-reset-all');
+      btn.disabled = true;
+      let ok = 0;
+      for (const r of allData) {
+        if (window.dataSdk && typeof window.dataSdk.delete === 'function') {
+          const res = await window.dataSdk.delete(r);
+          if (res?.isOk) ok++;
+        } else {
+          ok++;
+        }
+      }
+      allData = [];
+      btn.disabled = false;
+      showToast(ok + ' booking dipadam');
+      renderAllSchedules();
+    };
+
+    // === BOOKING MODAL ===
+    function openBookingModal(type, prefill = {}) {
+      currentBookingType = type;
+      document.getElementById('modal-title').textContent = `Booking ${type}`;
+      const nameSel = document.getElementById('modal-input-name');
+      nameSel.innerHTML = `<option value="">Pilih</option>` + userNames.map(n => `<option value="${n}">${n}</option>`).join('');
+      populateModalTimes();
+      
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('modal-input-date').value = prefill.date || today;
+      document.getElementById('modal-input-end-date').value = prefill.date || today;
+      
+      if (prefill.time) {
+        document.getElementById('modal-input-time').value = prefill.time;
+        const idx = timeSlots.findIndex(t => t.value === prefill.time);
+        if (idx < timeSlots.length - 1) {
+          document.getElementById('modal-input-end-time').value = timeSlots[idx + 1].value;
+        }
+      }
+      
+      populateOwnerSelect(type);
+      if (prefill.owner) document.getElementById('modal-input-owner').value = prefill.owner;
+      
+      attachDynamicListeners(type);
+      
+      const modal = document.getElementById('booking-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function populateModalTimes() {
+      const s = document.getElementById('modal-input-time');
+      const e = document.getElementById('modal-input-end-time');
+      s.innerHTML = timeSlots.slice(0, -1).map(t => `<option value="${t.value}">${t.label}</option>`).join('');
+      e.innerHTML = timeSlots.slice(1).map(t => `<option value="${t.value}">${t.label}</option>`).join('');
+      s.onchange = () => {
+        const idx = timeSlots.findIndex(t => t.value === s.value);
+        if (idx < timeSlots.length - 1) e.value = timeSlots[idx + 1].value;
+      };
+    }
+
+    function populateOwnerSelect(type) {
+      // Robust reload from storage (ensures latest pemegang from admin always appear in booking modal)
+      try {
+        const stored = safeStorage.getItem('bk_equip_owners');
+        if (stored) equipOwners = JSON.parse(stored);
+      } catch (e) {}
+
+      const sel = document.getElementById('modal-input-owner');
+      const filtered = equipOwners.filter(o => o.type.toLowerCase() === type.toLowerCase());
+      sel.innerHTML = filtered.length 
+        ? filtered.map(o => `<option value="${o.owner}">${o.owner}</option>`).join('')
+        : '<option value="">Tiada pemegang untuk jenis ini</option>';
+    }
+
+    function attachDynamicListeners(type) {
+      const dateI = document.getElementById('modal-input-date');
+      const timeI = document.getElementById('modal-input-time');
+      const endTimeI = document.getElementById('modal-input-end-time');
+      const refresh = () => { 
+        if (dateI.value && timeI.value && endTimeI.value) populateOwnerSelect(type); 
+      };
+      dateI.onchange = refresh; 
+      timeI.onchange = refresh; 
+      endTimeI.onchange = refresh;
+    }
+
+    function closeBookingModal() {
+      const m = document.getElementById('booking-modal');
+      m.classList.remove('flex'); 
+      m.classList.add('hidden');
+    }
+
+    function initModal() {
+      document.getElementById('modal-close').onclick = closeBookingModal;
+      document.getElementById('modal-cancel').onclick = closeBookingModal;
+      document.getElementById('booking-modal').onclick = e => { 
+        if (e.target.id === 'booking-modal') closeBookingModal(); 
+      };
+    }
+
+    // === SUBMIT BOOKING ===
+    document.getElementById('modal-booking-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const user_name = document.getElementById('modal-input-name').value;
+      if (!user_name) { showToast('Sila pilih nama peminjam'); return; }
+      
+      const owner = document.getElementById('modal-input-owner').value;
+      if (!owner) { showToast('Sila pilih pemegang'); return; }
+      
+      const startDate = document.getElementById('modal-input-date').value;
+      const endDate = document.getElementById('modal-input-end-date').value;
+      const time_slot = document.getElementById('modal-input-time').value;
+      const end_time = document.getElementById('modal-input-end-time').value;
+      const isSemester = document.getElementById('modal-booking-type').value === 'semester';
+      
+      const d = new Date(startDate);
+      const dayIdx = d.getDay() === 0 ? 6 : d.getDay() - 1;
+      const day = WEEKDAYS[dayIdx];
+      
+      const record = {
+        day, time_slot, end_time, equipment: currentBookingType,
+        user_name, owner, created_at: new Date().toISOString(),
+        recurring: isSemester,
+        recurring_start: isSemester ? startDate : '',
+        recurring_end: isSemester ? endDate : '',
+        recurring_day: isSemester ? day : '',
+        start_date: startDate, end_date: endDate
+      };
+      
+      const btn = document.getElementById('submit-booking-btn');
+      btn.disabled = true; 
+      btn.textContent = 'Menghantar...';
+      
+      try {
+        let res = { isOk: false };
+        if (window.dataSdk && typeof window.dataSdk.create === 'function') {
+          res = await window.dataSdk.create(record);
+        } else {
+          allData.push({ ...record, __backendId: 'local-' + Date.now() });
+          res = { isOk: true };
+        }
+        if (res.isOk) {
+          showToast('Berjaya ditempah!');
+          closeBookingModal();
+          renderAllSchedules();
+        } else {
+          showToast('Gagal merekodkan booking.');
+        }
+      } catch (err) {
+        showToast('Ralat: ' + (err.message || ''));
+      } finally {
+        btn.disabled = false; 
+        btn.textContent = 'Hantar Booking';
+      }
+    };
+
+    // === Holder Tabs (per equipment + per pemegang) ===
+    function selectEquipment(type) {
+      currentBookingType = type;
+      document.getElementById('holder-tabs-container').classList.remove('hidden');
+      document.getElementById('global-grid-section').style.display = 'none';
+      document.getElementById('holder-equip-title').textContent = `Pemegang ${type}`;
+      
+      const tabsDiv = document.getElementById('holder-tabs');
+      tabsDiv.innerHTML = '';
+
+      // === ROBUST SYNC: Reload latest pemegang from storage ===
+      try {
+        const stored = safeStorage.getItem('bk_equip_owners');
+        if (stored) {
+          equipOwners = JSON.parse(stored);
+        }
+      } catch (e) {}
+
+      // Case-insensitive filter for robustness
+      const holders = equipOwners.filter(o => o.type.toLowerCase() === type.toLowerCase());
+      if (holders.length === 0) {
+        tabsDiv.innerHTML = `<p class="text-white px-4 py-2 bg-white/10 rounded-xl">Tiada pemegang untuk ${type}. Sila tambah di Admin Panel.</p>`;
+        return;
+      }
+      
+      holders.forEach((h, idx) => {
+        const btn = document.createElement('button');
+        btn.className = `px-5 py-2.5 rounded-2xl text-sm font-semibold transition ${idx===0 ? 'bg-[#1e3a5f] text-white' : 'bg-white border hover:bg-gray-50'}`;
+        btn.textContent = h.owner;
+        btn.onclick = () => {
+          tabsDiv.querySelectorAll('button').forEach(b => b.classList.remove('bg-[#1e3a5f]', 'text-white'));
+          btn.classList.add('bg-[#1e3a5f]', 'text-white');
+          renderHolderSchedule(type, h.owner);
+        };
+        tabsDiv.appendChild(btn);
+      });
+      tabsDiv.children[0].click();
+    }
+
+    function renderHolderSchedule(equipType, ownerName) {
+      const wrapper = document.getElementById('holder-grid-wrapper');
+      wrapper.innerHTML = '';
+      
+      const table = document.createElement('table');
+      table.className = 'w-full text-xs border-collapse';
+      table.innerHTML = `<thead><tr class="bg-[#c5dfff]"><th class="px-3 py-3 text-left font-bold text-[#1e3a5f] sticky left-0 bg-[#c5dfff] border border-blue-200 w-[95px]">Hari</th></tr></thead><tbody></tbody>`;
+      
+      const theadRow = table.querySelector('thead tr');
+      timeSlots.forEach(ts => {
+        const th = document.createElement('th');
+        th.className = 'px-1 py-2.5 text-center font-bold text-[#1e3a5f] border border-blue-200 text-[10px] bg-[#c5dfff]';
+        th.innerHTML = formatTime12(ts.value).replace(' ','<br>');
+        th.style.minWidth = '48px';
+        theadRow.appendChild(th);
+      });
+      
+      const tbody = table.querySelector('tbody');
+      WEEKDAYS.forEach(day => {
+        const tr = document.createElement('tr');
+        const dayTd = document.createElement('td');
+        dayTd.className = 'px-3 py-3 font-bold text-[#1e3a5f] bg-[#c5dfff] border border-blue-200 sticky left-0 z-10';
+        dayTd.textContent = day;
+        tr.appendChild(dayTd);
+        
+        timeSlots.forEach(ts => {
+          const td = document.createElement('td');
+          td.className = 'px-0.5 py-0.5 text-center border border-blue-200 text-[10px] font-medium';
+          td.style.height = '36px';
+          
+          const ownerBookings = allData.filter(r =>
+            (r.equipment || '').toLowerCase() === equipType.toLowerCase() && r.owner === ownerName &&
+            (r.day === day || (r.recurring && r.recurring_day === day)) &&
+            parseInt(r.time_slot) <= parseInt(ts.value) && parseInt(ts.value) < parseInt(r.end_time)
+          );
+          
+          if (ownerBookings.length > 0) {
+            const first = ownerBookings[0];
+            td.style.backgroundColor = getUserColor(first.user_name);
+            td.style.color = '#fff';
+            td.style.fontWeight = '600';
+            const firstName = first.user_name.split(' ')[0].substring(0, 6);
+            td.innerHTML = `<span style="font-size:9px">${firstName}</span>`;
+            td.onclick = () => {
+              deleteTarget = ownerBookings[0];
+              document.getElementById('delete-modal').classList.remove('hidden');
+              document.getElementById('delete-modal').classList.add('flex');
+            };
+          } else {
+            td.classList.add('bg-white', 'hover:bg-blue-50');
+            td.onclick = () => openBookingModal(equipType, {owner: ownerName, time: ts.value});
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      wrapper.appendChild(table);
+    }
+
+    function closeHolderView() {
+      document.getElementById('holder-tabs-container').classList.add('hidden');
+      document.getElementById('global-grid-section').style.display = 'block';
+    }
+
+    document.getElementById('book-proj-btn').onclick = () => selectEquipment('Projector');
+    document.getElementById('book-lap-btn').onclick = () => selectEquipment('Laptop');
+
+    // === GLOBAL SCHEDULE (Separate for Projector & Laptop) ===
+    function renderAllSchedules() {
+      renderEquipmentSchedule('Projector', 'proj-schedule-grid', 'proj-schedule-tbody', 'proj-holders-list');
+      renderEquipmentSchedule('Laptop', 'lap-schedule-grid', 'lap-schedule-tbody', 'lap-holders-list');
+    }
+
+    function renderEquipmentSchedule(equipType, gridId, tbodyId, holdersListId) {
+      // === ROBUST SYNC: Always reload latest pemegang from storage ===
+      try {
+        const stored = safeStorage.getItem('bk_equip_owners');
+        if (stored) {
+          equipOwners = JSON.parse(stored);
+        }
+      } catch (e) {}
+
+      // Update holders list (autosync from admin)
+      const holdersEl = document.getElementById(holdersListId);
+      if (holdersEl) {
+        const hs = equipOwners.filter(o => o.type.toLowerCase() === equipType.toLowerCase()).map(o => o.owner);
+        holdersEl.textContent = hs.length ? hs.join('  •  ') : 'Tiada pemegang didaftar';
+      }
+
+      // Build thead
+      const thead = document.querySelector(`#${gridId} thead tr`);
+      while (thead.children.length > 1) thead.removeChild(thead.lastChild);
+      
+      timeSlots.forEach(ts => {
+        const th = document.createElement('th');
+        th.className = 'px-1 py-2.5 text-center font-bold text-[#1e3a5f] border border-blue-200 text-[10px] bg-[#c5dfff]';
+        th.innerHTML = formatTime12(ts.value).replace(' ','<br>');
+        th.style.minWidth = '48px';
+        thead.appendChild(th);
+      });
+
+      // Build tbody
+      const tbody = document.getElementById(tbodyId);
+      tbody.innerHTML = '';
+
+      WEEKDAYS.forEach(day => {
+        const tr = document.createElement('tr');
+        const dayTd = document.createElement('td');
+        dayTd.className = 'px-3 py-3 font-bold text-[#1e3a5f] bg-[#c5dfff] border border-blue-200 sticky left-0 z-10';
+        dayTd.textContent = day;
+        tr.appendChild(dayTd);
+
+        timeSlots.forEach(ts => {
+          const td = document.createElement('td');
+          td.className = 'px-0.5 py-0.5 text-center border border-blue-200 cursor-pointer text-[10px] font-medium';
+          td.style.height = '36px';
+
+          const bookings = allData.filter(r => 
+            (r.equipment || '').toLowerCase() === equipType.toLowerCase() &&
+            (r.day === day || (r.recurring && r.recurring_day === day)) &&
+            r.time_slot && r.end_time &&
+            parseInt(r.time_slot) <= parseInt(ts.value) && parseInt(ts.value) < parseInt(r.end_time)
+          );
+
+          if (bookings.length > 0) {
+            const first = bookings[0];
+            td.style.backgroundColor = getUserColor(first.user_name);
+            td.style.color = '#fff';
+            td.style.fontWeight = '600';
+            const firstName = first.user_name.split(' ')[0].substring(0, 5);
+            const ownerShort = first.owner ? first.owner.split(' ').pop().substring(0, 5) : '';
+            td.innerHTML = `<span style="font-size:8px;line-height:1.1">${firstName}<br><span style="opacity:0.85;font-size:7px">${ownerShort}</span></span>`;
+            
+            td.onclick = () => {
+              deleteTarget = bookings[0];
+              document.getElementById('delete-modal').classList.remove('hidden');
+              document.getElementById('delete-modal').classList.add('flex');
+            };
+          } else {
+            td.classList.add('bg-white', 'hover:bg-blue-50');
+            td.onclick = () => openBookingModal(equipType, { time: ts.value });
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    function switchScheduleTab(type) {
+      const projW = document.getElementById('proj-schedule-wrapper');
+      const lapW = document.getElementById('lap-schedule-wrapper');
+      const tabP = document.getElementById('sched-tab-proj');
+      const tabL = document.getElementById('sched-tab-lap');
+
+      if (type === 'Projector') {
+        projW.classList.remove('hidden');
+        lapW.classList.add('hidden');
+        tabP.classList.add('schedule-tab-active');
+        tabL.classList.remove('schedule-tab-active');
+        tabL.classList.add('text-[#1e3a5f]');
+      } else {
+        lapW.classList.remove('hidden');
+        projW.classList.add('hidden');
+        tabL.classList.add('schedule-tab-active');
+        tabP.classList.remove('schedule-tab-active');
+        tabP.classList.add('text-[#1e3a5f]');
+      }
+    }
+
+    // === DELETE ===
+    document.getElementById('delete-no').onclick = () => {
+      document.getElementById('delete-modal').classList.remove('flex');
+      document.getElementById('delete-modal').classList.add('hidden');
+    };
+
+    document.getElementById('delete-yes').onclick = async () => {
+      if (!deleteTarget) return;
+      const btn = document.getElementById('delete-yes');
+      btn.disabled = true;
+      
+      let success = false;
+      if (window.dataSdk && typeof window.dataSdk.delete === 'function') {
+        const res = await window.dataSdk.delete(deleteTarget);
+        success = res.isOk;
+      } else {
+        allData = allData.filter(r => r.__backendId !== deleteTarget.__backendId);
+        success = true;
+      }
+      
+      btn.disabled = false;
+      document.getElementById('delete-modal').classList.remove('flex');
+      document.getElementById('delete-modal').classList.add('hidden');
+      
+      if (success) {
+        showToast('Booking dipadam');
+        renderAllSchedules();
+      } else {
+        showToast('Gagal padam');
+      }
+      deleteTarget = null;
+    };
+
+    function showToast(msg) {
+      const t = document.createElement('div');
+      t.className = 'toast bg-gray-900 text-white px-5 py-3 rounded-2xl text-sm shadow-lg';
+      t.textContent = msg;
+      document.getElementById('toast-container').appendChild(t);
+      setTimeout(() => t.remove(), 3200);
+    }
+
+    // Data change handler (for external SDK if any)
+    const handler = { 
+      onDataChanged: d => { 
+        allData = d || []; 
+        renderAllSchedules(); 
+      } 
+    };
+
+    // === INIT ===
+    (async () => {
+      // Render admin lists
+      renderAdminUsers();
+      renderAdminEquip();
+      
+      // Sesi
+      updateSesiDisplay();
+      
+      // Init admin popup (small, beside gear)
+      initAdminPopup();
+      
+      // Init booking modal
+      initModal();
+      
+      // Initial schedules (separate for each equipment)
+      renderAllSchedules();
+      
+      // Default show Projector tab
+      switchScheduleTab('Projector');
+      
+      // Init Lucide icons
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+      
+      // Load from backend SDK if available
+      if (window.dataSdk) {
+        await window.dataSdk.init(handler);
+      }
+      
+      // Bonus: keyboard shortcut hint in console (dev)
+      console.log('%c[i-Booking JKM] Admin password: jkm123 | Font: Roboto | Sesi & Pemegang autosync enabled', 'color:#64748b');
+    })();
+  </script>
+</body>
+</html>
